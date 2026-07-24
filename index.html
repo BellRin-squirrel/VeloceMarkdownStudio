@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qiita-like Markdown Editor with Collapsible Codes</title>
+  
+  <!-- marked.js (Markdownパーサー) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- highlight.js (シンタックスハイライト) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
+  <style>
+    /* ----------------------------------
+     * 基本レイアウト
+     * ---------------------------------- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #333;
+      background-color: #f6f8fa;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: #55c500;
+      color: white;
+      padding: 10px 20px;
+      font-weight: bold;
+      font-size: 1.2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 44px);
+      overflow: hidden;
+    }
+
+    /* エディタ（左） */
+    .editor-wrapper {
+      flex: 1;
+      border-right: 1px solid #e0e0e0;
+      background-color: #fff;
+    }
+    textarea {
+      width: 100%;
+      height: 100%;
+      padding: 20px;
+      border: none;
+      resize: none;
+      outline: none;
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #24292f;
+    }
+
+    /* プレビュー（右） */
+    .preview-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      background-color: #fff;
+      padding: 30px;
+      position: relative; /* フローティングヘッダー追従の基準点 */
+    }
+
+    /* ----------------------------------
+     * MarkdownのQiita風スタイリング
+     * ---------------------------------- */
+    .markdown-body h1 {
+      font-size: 1.8rem;
+      border-bottom: 1px solid #e0e0e0;
+      padding-bottom: 8px;
+      margin-top: 24px;
+      margin-bottom: 16px;
+    }
+    .markdown-body h2 {
+      font-size: 1.4rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 6px;
+      margin-top: 20px;
+      margin-bottom: 12px;
+    }
+    .markdown-body h3 {
+      font-size: 1.2rem;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+    .markdown-body p {
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+    
+    /* Qiita風のテーブルスタイル */
+    .markdown-body table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    .markdown-body th, .markdown-body td {
+      border: 1px solid #e0e0e0;
+      padding: 8px 12px;
+    }
+    .markdown-body th {
+      background-color: #f7f7f7;
+      font-weight: bold;
+    }
+    .markdown-body tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+
+    /* ----------------------------------
+     * コードブロック用スタイリング
+     * ---------------------------------- */
+    .code-block-container {
+      position: relative;
+      margin: 20px 0;
+      border-radius: 6px;
+      background-color: #0d1117;
+      border: 1px solid #30363d;
+      overflow: hidden;
+    }
+    
+    /* ヘッダー共有デザイン（通常ヘッダー & フローティングヘッダー） */
+    .code-header {
+      background-color: #161b22;
+      border-bottom: 1px solid #30363d;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      user-select: none;
+    }
+    .code-header-interactive {
+      cursor: pointer;
+    }
+    .code-header-interactive:hover {
+      background-color: #1f242c;
+    }
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #c9d1d9;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    
+    /* 折りたたみ用矢印（トグル） */
+    .fold-icon {
+      font-size: 10px;
+      transition: transform 0.2s ease;
+      display: inline-block;
+    }
+    
+    /* コピーボタン */
+    .copy-button {
+      background-color: rgba(110, 118, 129, 0.2);
+      color: #c9d1d9;
+      border: 1px solid rgba(240, 246, 252, 0.1);
+      border-radius: 6px;
+      padding: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .copy-button:hover {
+      background-color: rgba(110, 118, 129, 0.4);
+      border-color: #8b949e;
+    }
+    .copy-button.copied {
+      background-color: #2ea44f;
+      border-color: #2ea44f;
+      color: #fff;
+    }
+
+    /* コード本文・行番号 */
+    .code-body {
+      display: flex;
+    }
+    .line-numbers {
+      padding: 16px 0;
+      text-align: right;
+      color: #8b949e;
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 20px;
+      user-select: none;
+      border-right: 1px solid #30363d;
+      background-color: #0d1117;
+      min-width: 3.5em;
+      padding-right: 10px;
+    }
+    .line-numbers span {
+      display: block;
+    }
+    pre {
+      margin: 0 !important;
+      padding: 16px !important;
+      overflow-x: auto;
+      flex: 1;
+      background: transparent !important;
+    }
+    pre code {
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace !important;
+      font-size: 13px !important;
+      line-height: 20px !important;
+      background: transparent !important;
+      padding: 0 !important;
+      display: block;
+    }
+
+    /* 折りたたまれた時のCSSトグル */
+    .code-block-container.collapsed .code-body {
+      display: none;
+    }
+    .code-block-container.collapsed .fold-icon {
+      transform: rotate(-90deg); /* 矢印を右に向ける */
+    }
+
+    /* ----------------------------------
+     * スクロール時に画面上部に追従する固定ヘッダー
+     * ---------------------------------- */
+    .floating-header {
+      position: absolute;
+      left: 30px; /* .preview-wrapperのpaddingと一致させる */
+      right: 30px; /* 同上 */
+      z-index: 100;
+      border-radius: 6px 6px 0 0;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+    }
+  </style>
+</head>
+<body>
+
+  <header>Qiita-like Markdown Editor</header>
+  
+  <div class="container">
+    <div class="editor-wrapper">
+      <textarea id="editor" placeholder="ここにMarkdownを入力してください..."></textarea>
+    </div>
+    <div class="preview-wrapper" id="preview-wrapper">
+      <!-- スクロール追従用のフローティングヘッダー -->
+      <div id="floating-code-header" class="code-header floating-header code-header-interactive" style="display: none;">
+        <div class="header-left">
+          <span class="fold-icon">▼</span>
+          <span class="file-name" id="floating-file-name">filename.js</span>
+        </div>
+        <button class="copy-button" id="floating-copy-btn"></button>
+      </div>
+      <div id="preview" class="markdown-body"></div>
+    </div>
+  </div>
+
+  <script>
+    // SVGアイコン
+    const copyIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 5h3A1.5 1.5 0 0 0 11 3.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/></svg>`;
+    const successIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>`;
+
+    // 初期表示用のMarkdownサンプル
+    const initialMarkdown = `# Qiita風 Markdown エディタ
+
+左側に入力したMarkdownが、右側にリアルタイムでプレビューされます。
+
+## テーブルの表示
+| 技術スタック | バージョン | 特徴 |
+| :--- | :---: | ---: |
+| HTML5 | 最新 | 構造定義 |
+| CSS3 | 最新 | スタイリング |
+| JavaScript | ES6+ | 動的処理 |
+
+---
+
+## コードブロック（ファイル名・アコーディオン・スクロール追従）
+ヘッダー（コピーボタン以外）をクリックすると折りたたむことができます。
+プレビュー側をスクロールし、コードが画面上部に差し掛かると、上端に同じ見た目の固定ヘッダー（スクロール追従）が現れます。
+
+\`\`\`javascript:sample.js
+// フィボナッチ数列を生成する関数
+function fibonacci(n) {
+  const result = [0, 1];
+  for (let i = 2; i < n; i++) {
+    result.push(result[i - 1] + result[i - 2]);
+  }
+  return result;
+}
+
+// 関数の実行と出力
+const n = 15;
+const fibSequence = fibonacci(n);
+console.log(\`フィボナッチ数列（最初の\${n}個）:\`, fibSequence);
+
+function checkPrime(number) {
+  if (number <= 1) return false;
+  for (let i = 2; i <= Math.sqrt(number); i++) {
+    if (number % i === 0) return false;
+  }
+  return true;
+}
+
+for (let i = 1; i <= 35; i++) {
+  if (checkPrime(i)) {
+    console.log(\`\${i} は素数です。\`);
+  }
+}
+\`\`\`
+
+---
+
+## 言語名のみ（ファイル名なし）の場合
+ファイル名がない場合は、言語名がプレースホルダーとして自動設定されます。
+
+\`\`\`css
+.code-block-container {
+  position: relative;
+  margin: 20px 0;
+  border-radius: 6px;
+  background-color: #0d1117;
+  border: 1px solid #30363d;
+}
+\`\`\`
+`;
+
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    const previewWrapper = document.getElementById('preview-wrapper');
+    const floatingHeader = document.getElementById('floating-code-header');
+    const floatingFileName = document.getElementById('floating-file-name');
+    const floatingCopyBtn = document.getElementById('floating-copy-btn');
+
+    // 追従用ヘッダーのアクティブ情報保持用
+    let activeCodeText = '';
+    let activeContainer = null;
+
+    // markedの基本設定（GFMを有効化）
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    });
+
+    // 折りたたみトグルの処理
+    function toggleCodeCollapse(container) {
+      container.classList.toggle('collapsed');
+      
+      // 折りたたまれたら追従ヘッダーを一度リセットするようイベントを手動発火
+      previewWrapper.dispatchEvent(new Event('scroll'));
+    }
+
+    // プレビューの更新処理
+    function updatePreview() {
+      const rawMarkdown = editor.value;
+      let html = marked.parse(rawMarkdown);
+      
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      
+      // highlight.jsによるシンタックスハイライトの事前適用
+      tempDiv.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+      
+      const preElements = tempDiv.querySelectorAll('pre');
+      preElements.forEach((pre) => {
+        const code = pre.querySelector('code');
+        if (!code) return;
+        
+        const rawCodeText = code.textContent;
+        const className = code.className || '';
+        let fileName = '';
+        let lang = '';
+
+        // クラス名から言語とファイル名を抽出 (例: language-javascript:index.js)
+        if (className.startsWith('language-')) {
+          const cleanClassName = className.replace('hljs ', ''); // hljsが付着している場合を除く
+          const parts = cleanClassName.replace('language-', '').split(':');
+          lang = parts[0];
+          if (parts.length > 1) {
+            fileName = parts[1];
+          }
+        }
+
+        // highlight.jsが解釈できるようにクラス名を設定
+        if (lang) {
+          code.className = `hljs language-${lang}`;
+        }
+
+        const displayName = fileName || lang.toUpperCase() || 'CODE';
+        
+        const lines = rawCodeText.replace(/\n$/, '').split('\n');
+        const lineCount = lines.length;
+        
+        let lineNumbersHTML = '';
+        for (let i = 1; i <= lineCount; i++) {
+          lineNumbersHTML += `<span>${i}</span>`;
+        }
+        
+        // コンテナの構築
+        const container = document.createElement('div');
+        container.className = 'code-block-container';
+        container.setAttribute('data-filename', displayName);
+        container.setAttribute('data-code', rawCodeText);
+        
+        // 通常のコードヘッダー
+        const header = document.createElement('div');
+        header.className = 'code-header code-header-interactive';
+        
+        // 安全にイベントリスナーを追加
+        header.addEventListener('click', () => {
+          toggleCodeCollapse(container);
+        });
+        
+        const headerLeft = document.createElement('div');
+        headerLeft.className = 'header-left';
+        
+        const foldIcon = document.createElement('span');
+        foldIcon.className = 'fold-icon';
+        foldIcon.textContent = '▼';
+        
+        const fileNameSpan = document.createElement('span');
+        fileNameSpan.className = 'file-name';
+        fileNameSpan.textContent = displayName;
+        
+        headerLeft.appendChild(foldIcon);
+        headerLeft.appendChild(fileNameSpan);
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-button';
+        copyBtn.innerHTML = copyIconHTML;
+        
+        // コピーボタンのクリックイベント
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // これが確実にアコーディオンの開閉を防ぎます
+          navigator.clipboard.writeText(rawCodeText).then(() => {
+            copyBtn.innerHTML = successIconHTML;
+            copyBtn.classList.add('copied');
+            setTimeout(() => {
+              copyBtn.innerHTML = copyIconHTML;
+              copyBtn.classList.remove('copied');
+            }, 2000);
+          });
+        });
+        
+        header.appendChild(headerLeft);
+        header.appendChild(copyBtn);
+        
+        const body = document.createElement('div');
+        body.className = 'code-body';
+        
+        const lineNumbersDiv = document.createElement('div');
+        lineNumbersDiv.className = 'line-numbers';
+        lineNumbersDiv.innerHTML = lineNumbersHTML;
+        
+        const newPre = pre.cloneNode(true);
+        
+        body.appendChild(lineNumbersDiv);
+        body.appendChild(newPre);
+        
+        container.appendChild(header);
+        container.appendChild(body);
+        
+        pre.parentNode.replaceChild(container, pre);
+      });
+      
+      // 【バグ修正のポイント】
+      // innerHTMLを介さずに、addEventListenerが付着したDOMオブジェクトそのものを直接移行する
+      preview.innerHTML = '';
+      while (tempDiv.firstChild) {
+        preview.appendChild(tempDiv.firstChild);
+      }
+
+      // スクロール位置に基づく追従ヘッダーを再計算
+      previewWrapper.dispatchEvent(new Event('scroll'));
+    }
+
+    // ----------------------------------
+    // スクロール時のヘッダー追従（固定表示）判定
+    // ----------------------------------
+    previewWrapper.addEventListener('scroll', () => {
+      const scrollTop = previewWrapper.scrollTop;
+      
+      // フローティングヘッダーの位置を現在のスクロール位置に追従させる
+      floatingHeader.style.top = `${scrollTop}px`;
+      
+      const containers = previewWrapper.querySelectorAll('.code-block-container');
+      let showingFloatingHeader = false;
+      
+      const wrapperRect = previewWrapper.getBoundingClientRect();
+      const wrapperTop = wrapperRect.top; // プレビューエリア上端のスクリーン座標位置
+      
+      activeContainer = null; // リセット
+      
+      for (let container of containers) {
+        // 折りたたまれている場合は追従をスキップ
+        if (container.classList.contains('collapsed')) continue;
+        
+        const rect = container.getBoundingClientRect();
+        
+        // コードブロックの上端が画面上端を過ぎており、かつ下端が画面上端より下にある場合
+        if (rect.top < wrapperTop && rect.bottom > wrapperTop) {
+          const fileName = container.getAttribute('data-filename') || 'CODE';
+          const codeText = container.getAttribute('data-code') || '';
+          
+          floatingFileName.textContent = fileName;
+          activeCodeText = codeText;
+          activeContainer = container; // 現在追従しているコンテナを記録
+          showingFloatingHeader = true;
+          break; // 最初（一番上）に該当したコードブロックのみを対象にする
+        }
+      }
+      
+      if (showingFloatingHeader) {
+        floatingHeader.style.display = 'flex';
+      } else {
+        floatingHeader.style.display = 'none';
+      }
+    });
+
+    // 固定表示ヘッダー全体のクリックイベント
+    floatingHeader.addEventListener('click', () => {
+      if (!activeContainer) return;
+      
+      // 1. 対象のコードブロックを折りたたむ
+      activeContainer.classList.add('collapsed');
+      
+      // 2. 折りたたまれたブロックが中央付近に表示されるようにスクロール調整 (可能な範囲で)
+      activeContainer.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      
+      // 3. 即座に非表示にする
+      floatingHeader.style.display = 'none';
+    });
+
+    // 固定表示ヘッダーのコピーボタン初期設定
+    floatingCopyBtn.innerHTML = copyIconHTML;
+    floatingCopyBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // ヘッダー全体のクリックイベントのバブリングを防止
+      if (!activeCodeText) return;
+      
+      navigator.clipboard.writeText(activeCodeText).then(() => {
+        floatingCopyBtn.innerHTML = successIconHTML;
+        floatingCopyBtn.classList.add('copied');
+        setTimeout(() => {
+          floatingCopyBtn.innerHTML = copyIconHTML;
+          floatingCopyBtn.classList.remove('copied');
+        }, 2000);
+      });
+    });
+
+    // 編集時の変更感知
+    editor.addEventListener('input', updatePreview);
+
+    // 初期読み込み
+    editor.value = initialMarkdown;
+    updatePreview();
+  </script>
+</body>
+</html>
