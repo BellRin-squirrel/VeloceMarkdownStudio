@@ -3,258 +3,518 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Qiita-like Markdown Editor with Collapsible Codes</title>
+  <title>Veloce Markdown Studio</title>
   
   <!-- marked.js (Markdownパーサー) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <!-- highlight.js (シンタックスハイライト) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     /* ----------------------------------
-     * 基本レイアウト
+     * デザインシステム & 変数
      * ---------------------------------- */
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #ffffff;
+      --bg-subtle: #f8fafc;
+      --border-color: #e2e8f0;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-light: #e0e7ff;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+
+      --code-bg: #181e29;
+      --code-header: #10141d;
+      --code-border: #283143;
+      --code-text: #e2e8f0;
+      --code-line-num: #52617a;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.12);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #333;
-      background-color: #f6f8fa;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
+      background-color: var(--bg-main);
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
+
+    /* ----------------------------------
+     * アプリケーションヘッダー
+     * ---------------------------------- */
     header {
-      background-color: #55c500;
-      color: white;
-      padding: 10px 20px;
-      font-weight: bold;
-      font-size: 1.2rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background: linear-gradient(90deg, #0f172a 0%, #1e1b4b 100%);
+      color: #fff;
+      height: 54px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 200;
     }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    }
+
+    .brand-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: #fff;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    /* ----------------------------------
+     * ワークスペーススプリット
+     * ---------------------------------- */
     .container {
       display: flex;
       flex: 1;
-      height: calc(100vh - 44px);
+      height: calc(100vh - 54px);
       overflow: hidden;
+      background-color: var(--bg-subtle);
     }
 
-    /* エディタ（左） */
+    /* エディタ（左ペイン） */
     .editor-wrapper {
       flex: 1;
-      border-right: 1px solid #e0e0e0;
-      background-color: #fff;
+      background-color: #ffffff;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }
+
+    .pane-header {
+      height: 38px;
+      background-color: #fafbfc;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
     textarea {
       width: 100%;
-      height: 100%;
-      padding: 20px;
+      flex: 1;
+      padding: 24px 28px;
       border: none;
       resize: none;
       outline: none;
-      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
-      font-size: 16px;
-      line-height: 1.6;
-      color: #24292f;
+      font-family: 'Fira Code', ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 14.5px;
+      line-height: 1.75;
+      color: #1e293b;
+      background-color: transparent;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
     }
 
-    /* プレビュー（右） */
+    textarea::placeholder {
+      color: #94a3b8;
+    }
+
+    /* プレビュー（右ペイン） */
     .preview-wrapper {
       flex: 1;
       overflow-y: auto;
-      background-color: #fff;
-      padding: 30px;
-      position: relative; /* フローティングヘッダー追従の基準点 */
+      background-color: #ffffff;
+      padding: 36px 44px;
+      position: relative;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
     }
 
     /* ----------------------------------
-     * MarkdownのQiita風スタイリング
+     * 独自Markdownタイポグラフィ & デザイン
      * ---------------------------------- */
+    .markdown-body {
+      max-width: 820px;
+      margin: 0 auto;
+      color: #334155;
+      font-size: 15.5px;
+      line-height: 1.8;
+    }
+
     .markdown-body h1 {
-      font-size: 1.8rem;
-      border-bottom: 1px solid #e0e0e0;
-      padding-bottom: 8px;
-      margin-top: 24px;
-      margin-bottom: 16px;
-    }
-    .markdown-body h2 {
-      font-size: 1.4rem;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 6px;
-      margin-top: 20px;
-      margin-bottom: 12px;
-    }
-    .markdown-body h3 {
-      font-size: 1.2rem;
-      margin-top: 16px;
-      margin-bottom: 8px;
-    }
-    .markdown-body p {
-      line-height: 1.7;
-      margin-bottom: 16px;
+      font-size: 2rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.025em;
+      margin-top: 10px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f1f5f9;
+      position: relative;
     }
     
-    /* Qiita風のテーブルスタイル */
-    .markdown-body table {
-      border-collapse: collapse;
-      width: 100%;
+    .markdown-body h1::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 48px;
+      height: 2px;
+      background-color: var(--accent);
+      border-radius: 2px;
+    }
+
+    .markdown-body h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #1e293b;
+      letter-spacing: -0.015em;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .markdown-body h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #334155;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    .markdown-body p {
+      margin-bottom: 18px;
+    }
+
+    .markdown-body hr {
+      border: none;
+      height: 1px;
+      background-color: #e2e8f0;
+      margin: 36px 0;
+    }
+
+    .markdown-body blockquote {
       margin: 20px 0;
-      font-size: 14px;
+      padding: 14px 20px;
+      border-left: 4px solid var(--accent);
+      background-color: #f8fafc;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      color: #475569;
+      font-style: italic;
     }
-    .markdown-body th, .markdown-body td {
-      border: 1px solid #e0e0e0;
-      padding: 8px 12px;
+
+    .markdown-body ul, .markdown-body ol {
+      margin-bottom: 20px;
+      padding-left: 24px;
     }
+
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+
+    /* インラインコード */
+    .markdown-body :not(pre) > code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.88em;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 3px 6px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* データテーブル */
+    .markdown-body table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      margin: 24px 0;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
     .markdown-body th {
-      background-color: #f7f7f7;
-      font-weight: bold;
+      background-color: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13.5px;
     }
-    .markdown-body tr:nth-child(even) {
-      background-color: #fafafa;
+
+    .markdown-body td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+      color: #334155;
+      transition: background-color 0.15s ease;
+    }
+
+    .markdown-body tr:last-child td {
+      border-bottom: none;
+    }
+
+    .markdown-body tr:hover td {
+      background-color: #fcfdfe;
     }
 
     /* ----------------------------------
-     * コードブロック用スタイリング
+     * 独自コードブロックデザイン
      * ---------------------------------- */
     .code-block-container {
       position: relative;
-      margin: 20px 0;
-      border-radius: 6px;
-      background-color: #0d1117;
-      border: 1px solid #30363d;
+      margin: 24px 0;
+      border-radius: var(--radius-md);
+      background-color: var(--code-bg);
+      border: 1px solid var(--code-border);
       overflow: hidden;
+      box-shadow: var(--shadow-md);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .code-block-container:hover {
+      border-color: #3b465b;
+      box-shadow: var(--shadow-lg);
     }
     
-    /* ヘッダー共有デザイン（通常ヘッダー & フローティングヘッダー） */
     .code-header {
-      background-color: #161b22;
-      border-bottom: 1px solid #30363d;
-      height: 40px;
+      background-color: var(--code-header);
+      border-bottom: 1px solid var(--code-border);
+      height: 42px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 16px;
       user-select: none;
+      transition: background-color 0.15s ease;
     }
+
     .code-header-interactive {
       cursor: pointer;
     }
+
     .code-header-interactive:hover {
-      background-color: #1f242c;
+      background-color: #171d29;
     }
     
     .header-left {
       display: flex;
       align-items: center;
-      gap: 8px;
-      color: #c9d1d9;
+      gap: 10px;
+      color: var(--code-text);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
+      font-family: 'Fira Code', monospace;
     }
-    
-    /* 折りたたみ用矢印（トグル） */
+
+    .file-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .fold-icon {
-      font-size: 10px;
-      transition: transform 0.2s ease;
+      font-size: 9px;
+      color: #64748b;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       display: inline-block;
     }
     
-    /* コピーボタン */
     .copy-button {
-      background-color: rgba(110, 118, 129, 0.2);
-      color: #c9d1d9;
-      border: 1px solid rgba(240, 246, 252, 0.1);
-      border-radius: 6px;
-      padding: 5px;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 5px 9px;
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
       display: flex;
       align-items: center;
-      justify-content: center;
-      transition: background-color 0.2s, border-color 0.2s;
+      gap: 6px;
+      transition: all 0.2s ease;
     }
+
     .copy-button:hover {
-      background-color: rgba(110, 118, 129, 0.4);
-      border-color: #8b949e;
-    }
-    .copy-button.copied {
-      background-color: #2ea44f;
-      border-color: #2ea44f;
+      background-color: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
       color: #fff;
     }
 
-    /* コード本文・行番号 */
+    .copy-button.copied {
+      background-color: rgba(16, 185, 129, 0.2);
+      border-color: #10b981;
+      color: #34d399;
+    }
+
+    /* コード本体・行番号 */
     .code-body {
       display: flex;
     }
+
     .line-numbers {
-      padding: 16px 0;
+      padding: 18px 0;
       text-align: right;
-      color: #8b949e;
-      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+      color: var(--code-line-num);
+      font-family: 'Fira Code', monospace;
       font-size: 13px;
-      line-height: 20px;
+      line-height: 22px;
       user-select: none;
-      border-right: 1px solid #30363d;
-      background-color: #0d1117;
-      min-width: 3.5em;
-      padding-right: 10px;
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+      background-color: rgba(0, 0, 0, 0.15);
+      min-width: 3.8em;
+      padding-right: 12px;
     }
+
     .line-numbers span {
       display: block;
     }
+
     pre {
       margin: 0 !important;
-      padding: 16px !important;
+      padding: 18px !important;
       overflow-x: auto;
       flex: 1;
       background: transparent !important;
     }
+
     pre code {
-      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace !important;
+      font-family: 'Fira Code', monospace !important;
       font-size: 13px !important;
-      line-height: 20px !important;
+      line-height: 22px !important;
       background: transparent !important;
       padding: 0 !important;
       display: block;
     }
 
-    /* 折りたたまれた時のCSSトグル */
+    /* 折りたたみ状態 */
     .code-block-container.collapsed .code-body {
       display: none;
     }
+
     .code-block-container.collapsed .fold-icon {
-      transform: rotate(-90deg); /* 矢印を右に向ける */
+      transform: rotate(-90deg);
     }
 
     /* ----------------------------------
-     * スクロール時に画面上部に追従する固定ヘッダー
+     * スクロール追従固定フローティングヘッダー
      * ---------------------------------- */
     .floating-header {
       position: absolute;
-      left: 30px; /* .preview-wrapperのpaddingと一致させる */
-      right: 30px; /* 同上 */
+      left: 44px;
+      right: 44px;
       z-index: 100;
-      border-radius: 6px 6px 0 0;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(8px);
+      background-color: rgba(16, 20, 29, 0.95);
+      border: 1px solid var(--code-border);
+      border-bottom: 1px solid #38455d;
     }
   </style>
 </head>
 <body>
 
-  <header>Qiita-like Markdown Editor</header>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h16v12H4zm3-2h2l2-3 2 3h2l-3-4.5L15 8h-2l-2 3-2-3H7l3 4.5L7 16z"/></svg>
+      </div>
+      <span>Veloce Markdown Studio</span>
+    </div>
+    <div class="header-badges">
+      <span class="badge-status">
+        <span class="status-dot"></span>
+        Live Preview Active
+      </span>
+      <span id="char-count">0 文字</span>
+    </div>
+  </header>
   
   <div class="container">
+    <!-- エディタ領域 -->
     <div class="editor-wrapper">
+      <div class="pane-header">
+        <span>Markdown Input</span>
+      </div>
       <textarea id="editor" placeholder="ここにMarkdownを入力してください..."></textarea>
     </div>
+
+    <!-- プレビュー領域 -->
     <div class="preview-wrapper" id="preview-wrapper">
-      <!-- スクロール追従用のフローティングヘッダー -->
+      <!-- スクロール追従用フローティングヘッダー -->
       <div id="floating-code-header" class="code-header floating-header code-header-interactive" style="display: none;">
         <div class="header-left">
           <span class="fold-icon">▼</span>
@@ -262,75 +522,93 @@
         </div>
         <button class="copy-button" id="floating-copy-btn"></button>
       </div>
+
       <div id="preview" class="markdown-body"></div>
     </div>
   </div>
 
   <script>
-    // SVGアイコン
-    const copyIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 5h3A1.5 1.5 0 0 0 11 3.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/></svg>`;
-    const successIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg>`;
+    // アイコン定義
+    const copyIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16"><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 5h3A1.5 1.5 0 0 0 11 3.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/></svg> <span>Copy</span>`;
+    const successIconHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16"><path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/></svg> <span>Copied!</span>`;
 
-    // 初期表示用のMarkdownサンプル
-    const initialMarkdown = `# Qiita風 Markdown エディタ
+    // 初期サンプルテキスト
+    const initialMarkdown = `# Modern Markdown Studio
 
-左側に入力したMarkdownが、右側にリアルタイムでプレビューされます。
+洗練されたデザインとエンジニアリング向けの拡張機能を備えたリアルタイム・ドキュメントワークスペースです。
 
-## テーブルの表示
-| 技術スタック | バージョン | 特徴 |
-| :--- | :---: | ---: |
-| HTML5 | 最新 | 構造定義 |
-| CSS3 | 最新 | スタイリング |
-| JavaScript | ES6+ | 動的処理 |
+## 主な機能と特徴
+- **リアルタイム・デュアルレンダリング**: 左側の編集が右側のビューへ即座に反映
+- **インテリジェント・コードブロック**: ファイル名指定、行番号、コピー、折りたたみトグル
+- **スティッキー追従ヘッダー**: 長いコードの閲覧中、上端にファイルバーが滑らかに追従
 
 ---
 
-## コードブロック（ファイル名・アコーディオン・スクロール追従）
-ヘッダー（コピーボタン以外）をクリックすると折りたたむことができます。
-プレビュー側をスクロールし、コードが画面上部に差し掛かると、上端に同じ見た目の固定ヘッダー（スクロール追従）が現れます。
+## データテーブル
+直感的でクリーンなテーブルデザインを標準提供しています。
 
-\`\`\`javascript:sample.js
-// フィボナッチ数列を生成する関数
-function fibonacci(n) {
-  const result = [0, 1];
-  for (let i = 2; i < n; i++) {
-    result.push(result[i - 1] + result[i - 2]);
-  }
-  return result;
+| コンポーネント | 技術仕様 | 状態 |
+| :--- | :---: | ---: |
+| Markdown Parser | marked.js 15+ | 稼働中 |
+| Syntax Highlighter | highlight.js | 稼働中 |
+| UI Framework | Modern CSS Variables | 最適化済 |
+
+---
+
+## 拡張コードブロック（追従・トグル機能）
+コードヘッダー（コピーボタン以外）をクリックすると、コンテンツを瞬時に折りたたむことができます。
+また、縦に長いコードブロックを下にスクロールすると、自動的に上端へスティッキーバーとして追従します。
+
+\`\`\`typescript:analytics-service.ts
+import { EventEmitter } from 'events';
+
+export interface PerformanceMetrics {
+  renderTime: number;
+  tokenCount: number;
+  timestamp: number;
 }
 
-// 関数の実行と出力
-const n = 15;
-const fibSequence = fibonacci(n);
-console.log(\`フィボナッチ数列（最初の\${n}個）:\`, fibSequence);
+export class MarkdownEngine extends EventEmitter {
+  private cache: Map<string, string> = new Map();
 
-function checkPrime(number) {
-  if (number <= 1) return false;
-  for (let i = 2; i <= Math.sqrt(number); i++) {
-    if (number % i === 0) return false;
+  constructor(private readonly options: Record<string, unknown> = {}) {
+    super();
   }
-  return true;
-}
 
-for (let i = 1; i <= 35; i++) {
-  if (checkPrime(i)) {
-    console.log(\`\${i} は素数です。\`);
+  /**
+   * ドキュメントパースとパフォーマンス計測
+   */
+  public parseDocument(source: string): string {
+    const startTime = performance.now();
+    
+    if (this.cache.has(source)) {
+      return this.cache.get(source)!;
+    }
+
+    // パーサー実行シミュレーション
+    const rendered = source.trim();
+    this.cache.set(source, rendered);
+
+    const duration = performance.now() - startTime;
+    this.emit('metric', {
+      renderTime: duration,
+      tokenCount: source.length,
+      timestamp: Date.now()
+    } as PerformanceMetrics);
+
+    return rendered;
   }
 }
 \`\`\`
 
 ---
 
-## 言語名のみ（ファイル名なし）の場合
-ファイル名がない場合は、言語名がプレースホルダーとして自動設定されます。
-
+## ファイル名省略時のコード表示
 \`\`\`css
-.code-block-container {
-  position: relative;
-  margin: 20px 0;
-  border-radius: 6px;
-  background-color: #0d1117;
-  border: 1px solid #30363d;
+.theme-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  backdrop-filter: blur(12px);
 }
 \`\`\`
 `;
@@ -341,34 +619,34 @@ for (let i = 1; i <= 35; i++) {
     const floatingHeader = document.getElementById('floating-code-header');
     const floatingFileName = document.getElementById('floating-file-name');
     const floatingCopyBtn = document.getElementById('floating-copy-btn');
+    const charCount = document.getElementById('char-count');
 
-    // 追従用ヘッダーのアクティブ情報保持用
     let activeCodeText = '';
     let activeContainer = null;
 
-    // markedの基本設定（GFMを有効化）
+    // markedの初期構成
     marked.setOptions({
       gfm: true,
       breaks: true,
     });
 
-    // 折りたたみトグルの処理
+    // コードブロックの折りたたみ処理
     function toggleCodeCollapse(container) {
       container.classList.toggle('collapsed');
-      
-      // 折りたたまれたら追従ヘッダーを一度リセットするようイベントを手動発火
       previewWrapper.dispatchEvent(new Event('scroll'));
     }
 
     // プレビューの更新処理
     function updatePreview() {
       const rawMarkdown = editor.value;
+      charCount.textContent = `${rawMarkdown.length.toLocaleString()} 文字`;
+
       let html = marked.parse(rawMarkdown);
       
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = html;
       
-      // highlight.jsによるシンタックスハイライトの事前適用
+      // シンタックスハイライト適用
       tempDiv.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
       });
@@ -383,9 +661,8 @@ for (let i = 1; i <= 35; i++) {
         let fileName = '';
         let lang = '';
 
-        // クラス名から言語とファイル名を抽出 (例: language-javascript:index.js)
         if (className.startsWith('language-')) {
-          const cleanClassName = className.replace('hljs ', ''); // hljsが付着している場合を除く
+          const cleanClassName = className.replace('hljs ', '');
           const parts = cleanClassName.replace('language-', '').split(':');
           lang = parts[0];
           if (parts.length > 1) {
@@ -393,12 +670,11 @@ for (let i = 1; i <= 35; i++) {
           }
         }
 
-        // highlight.jsが解釈できるようにクラス名を設定
         if (lang) {
           code.className = `hljs language-${lang}`;
         }
 
-        const displayName = fileName || lang.toUpperCase() || 'CODE';
+        const displayName = fileName || (lang ? lang.toUpperCase() : 'SOURCE CODE');
         
         const lines = rawCodeText.replace(/\n$/, '').split('\n');
         const lineCount = lines.length;
@@ -408,17 +684,14 @@ for (let i = 1; i <= 35; i++) {
           lineNumbersHTML += `<span>${i}</span>`;
         }
         
-        // コンテナの構築
+        // コードブロックコンテナ生成
         const container = document.createElement('div');
         container.className = 'code-block-container';
         container.setAttribute('data-filename', displayName);
         container.setAttribute('data-code', rawCodeText);
         
-        // 通常のコードヘッダー
         const header = document.createElement('div');
         header.className = 'code-header code-header-interactive';
-        
-        // 安全にイベントリスナーを追加
         header.addEventListener('click', () => {
           toggleCodeCollapse(container);
         });
@@ -441,9 +714,8 @@ for (let i = 1; i <= 35; i++) {
         copyBtn.className = 'copy-button';
         copyBtn.innerHTML = copyIconHTML;
         
-        // コピーボタンのクリックイベント
         copyBtn.addEventListener('click', (e) => {
-          e.stopPropagation(); // これが確実にアコーディオンの開閉を防ぎます
+          e.stopPropagation();
           navigator.clipboard.writeText(rawCodeText).then(() => {
             copyBtn.innerHTML = successIconHTML;
             copyBtn.classList.add('copied');
@@ -475,78 +747,56 @@ for (let i = 1; i <= 35; i++) {
         pre.parentNode.replaceChild(container, pre);
       });
       
-      // 【バグ修正のポイント】
-      // innerHTMLを介さずに、addEventListenerが付着したDOMオブジェクトそのものを直接移行する
+      // DOMを安全に差し替え
       preview.innerHTML = '';
       while (tempDiv.firstChild) {
         preview.appendChild(tempDiv.firstChild);
       }
 
-      // スクロール位置に基づく追従ヘッダーを再計算
       previewWrapper.dispatchEvent(new Event('scroll'));
     }
 
-    // ----------------------------------
-    // スクロール時のヘッダー追従（固定表示）判定
-    // ----------------------------------
+    // スクロール追従（固定フローティングヘッダー）の制御
     previewWrapper.addEventListener('scroll', () => {
       const scrollTop = previewWrapper.scrollTop;
-      
-      // フローティングヘッダーの位置を現在のスクロール位置に追従させる
       floatingHeader.style.top = `${scrollTop}px`;
       
       const containers = previewWrapper.querySelectorAll('.code-block-container');
       let showingFloatingHeader = false;
-      
       const wrapperRect = previewWrapper.getBoundingClientRect();
-      const wrapperTop = wrapperRect.top; // プレビューエリア上端のスクリーン座標位置
+      const wrapperTop = wrapperRect.top;
       
-      activeContainer = null; // リセット
+      activeContainer = null;
       
       for (let container of containers) {
-        // 折りたたまれている場合は追従をスキップ
         if (container.classList.contains('collapsed')) continue;
         
         const rect = container.getBoundingClientRect();
-        
-        // コードブロックの上端が画面上端を過ぎており、かつ下端が画面上端より下にある場合
         if (rect.top < wrapperTop && rect.bottom > wrapperTop) {
-          const fileName = container.getAttribute('data-filename') || 'CODE';
+          const fileName = container.getAttribute('data-filename') || 'SOURCE CODE';
           const codeText = container.getAttribute('data-code') || '';
           
           floatingFileName.textContent = fileName;
           activeCodeText = codeText;
-          activeContainer = container; // 現在追従しているコンテナを記録
+          activeContainer = container;
           showingFloatingHeader = true;
-          break; // 最初（一番上）に該当したコードブロックのみを対象にする
+          break;
         }
       }
       
-      if (showingFloatingHeader) {
-        floatingHeader.style.display = 'flex';
-      } else {
-        floatingHeader.style.display = 'none';
-      }
+      floatingHeader.style.display = showingFloatingHeader ? 'flex' : 'none';
     });
 
-    // 固定表示ヘッダー全体のクリックイベント
     floatingHeader.addEventListener('click', () => {
       if (!activeContainer) return;
-      
-      // 1. 対象のコードブロックを折りたたむ
       activeContainer.classList.add('collapsed');
-      
-      // 2. 折りたたまれたブロックが中央付近に表示されるようにスクロール調整 (可能な範囲で)
       activeContainer.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      
-      // 3. 即座に非表示にする
       floatingHeader.style.display = 'none';
     });
 
-    // 固定表示ヘッダーのコピーボタン初期設定
     floatingCopyBtn.innerHTML = copyIconHTML;
     floatingCopyBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // ヘッダー全体のクリックイベントのバブリングを防止
+      e.stopPropagation();
       if (!activeCodeText) return;
       
       navigator.clipboard.writeText(activeCodeText).then(() => {
@@ -559,10 +809,9 @@ for (let i = 1; i <= 35; i++) {
       });
     });
 
-    // 編集時の変更感知
     editor.addEventListener('input', updatePreview);
 
-    // 初期読み込み
+    // 初期化実行
     editor.value = initialMarkdown;
     updatePreview();
   </script>
